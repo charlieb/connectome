@@ -2,11 +2,38 @@
   (:require [quil.core :as q]
             [quil.middleware :as m]))
 
+(defn mk-node [] {:parent nil :kids [] :code ""})
+
+(defn code-to-nodes [code]
+  "Walks the code creating a node for every expression and putting them in tree.
+  node holds the current node"
+  (loop [code code
+         tree {0 (assoc (mk-node) :id 0)}
+         node (assoc (mk-node) :id 0)]
+    (println 'top code (:id node))
+    (if (empty? code)
+      tree
+    (case (first code)
+      \( (let [inner-code (take-while #(not (= \space %)) (rest code))
+                next-code (drop-while #(not (some (partial = %) [\( \)])) (rest code))
+                new-id (+ 1 (apply max (keys tree)))
+                new-node (assoc (mk-node)
+                                :id new-id
+                                :parent (:id node)
+                                :code inner-code)
+                new-tree (assoc (update-in tree [(:id node) :kids] #(cons new-id %))
+                                new-id new-node)]
+           (println "(" inner-code new-node)
+           (recur next-code new-tree new-node))
+      \) (do (println ")") (recur (rest code) tree (tree (:parent node))))
+      (do (println 'else code) (recur (drop-while #(not (some (partial = %) [\( \)])) code) tree node))))))
+
 (defn setup []
   ; Set frame rate to 30 frames per second.
   (q/frame-rate 30)
   ; Set color mode to HSB (HSV) instead of default RGB.
   (q/color-mode :hsb)
+  (println (code-to-nodes "(defn test [one two] (first (second one)) (third two))"))
   ; setup function returns initial state. It contains
   ; circle color and position.
   {:color 0
