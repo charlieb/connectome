@@ -21,19 +21,28 @@
                                 :id new-id
                                 :parent (:id node)
                                 :code inner-code)
-                new-tree (assoc (update-in tree [(:id node) :kids] #(cons new-id %))
+                new-tree (assoc (update-in tree [(:id node) :kids] #(conj % new-id))
                                 new-id new-node)]
            (println "(" inner-code new-node)
            (recur next-code new-tree new-node))
       \) (do (println ")") (recur (rest code) tree (tree (:parent node))))
       (do (println 'else code) (recur (drop-while #(not (some (partial = %) [\( \)])) code) tree node))))))
 
+(defn print-nodes 
+  ([nodes] (print-nodes 0 (nodes 0) nodes))
+  ([indent node nodes] 
+   (println (apply str (concat (take indent (repeat \space)) (:code node))))
+   (when (not (empty? (:kids node)))
+     (doseq [n (:kids node)] 
+       (print-nodes (+ 1 indent) (nodes n) nodes))))
+  )
+
 (defn setup []
   ; Set frame rate to 30 frames per second.
   (q/frame-rate 30)
   ; Set color mode to HSB (HSV) instead of default RGB.
   (q/color-mode :hsb)
-  (println (code-to-nodes "(defn test [one two] (first (second one)) (third two))"))
+  (print-nodes (code-to-nodes "(defn test [one two] (first (second one)) (third two))"))
   ; setup function returns initial state. It contains
   ; circle color and position.
   {:color 0
