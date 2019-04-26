@@ -8,6 +8,7 @@
 (defn take-word [lst] (take-while #(not (some (partial = %) [\space \( \)])) lst))
 (defn drop-word [lst] (rest (drop-while #(not (some (partial = %) [\space \( \)])) lst)))
 (defn drop-until-fn [lst] (drop-while #(not (some (partial = %) [\( \)])) lst))
+(defn find-defn [fn-name nodes] (:id (first (filter #(= (:label %) fn-name) (vals nodes)))))
 
 (defn code-to-nodes [code]
   "Walks the code creating a node for every expression and putting them in tree.
@@ -34,6 +35,19 @@
       \) (do (println ")") (recur (rest code) tree (tree (:parent node))))
       (do (println 'else code) (recur (drop-while #(not (some (partial = %) [\( \)])) code) tree node))))))
 
+(defn prt [x] (println x) x)
+(defn link-fn-calls [tree]
+  (reduce-kv 
+    (fn [m k node]
+      (assoc m k 
+             (assoc node :kids 
+                    (let [f (find-defn (:call node) tree)]
+                      (println (:call node) f)
+                      (if f (conj (:kids node) f) (:kids node))))))
+  {} tree))
+
+
+
 (defn print-nodes 
   ([nodes] (print-nodes 0 (nodes 0) nodes))
   ([indent node nodes] 
@@ -48,8 +62,8 @@
   (q/frame-rate 30)
   ; Set color mode to HSB (HSV) instead of default RGB.
   (q/color-mode :hsb)
-  (let [nodes (code-to-nodes "(defn test [one two] (first (second one)) (third two))")]
-    (println nodes)
+  (let [nodes (code-to-nodes "(defn test [one two] (first (second one)) (third)) (test)")]
+    (println (link-fn-calls nodes))
     (print-nodes nodes))
   ; setup function returns initial state. It contains
   ; circle color and position.
