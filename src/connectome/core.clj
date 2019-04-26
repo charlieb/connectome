@@ -3,12 +3,21 @@
             [quil.middleware :as m]
             [clojure.string :refer [join]]))
 
-(defn mk-node [] {:parent nil :kids [] :call ""})
+(defn prt [x] (println x) x)
+
+(defn mk-node [] {:parent nil :kids [] :call "" :label ""})
 
 (defn take-word [lst] (take-while #(not (some (partial = %) [\space \( \)])) lst))
 (defn drop-word [lst] (rest (drop-while #(not (some (partial = %) [\space \( \)])) lst)))
 (defn drop-until-fn [lst] (drop-while #(not (some (partial = %) [\( \)])) lst))
 (defn find-defn [fn-name nodes] (:id (first (filter #(= (:label %) fn-name) (vals nodes)))))
+(defn find-above [fn-name node nodes] 
+  (println 'find-above)
+  (loop [parent (nodes (:parent node))]
+    (println parent)
+    (if (= fn-name (:call parent)) 
+      parent
+      (recur (nodes (:parent parent))))))
 
 (defn code-to-nodes [code]
   "Walks the code creating a node for every expression and putting them in tree.
@@ -16,7 +25,7 @@
   (loop [code code
          tree {0 (assoc (mk-node) :id 0)}
          node (assoc (mk-node) :id 0)]
-    (println 'top code (:id node))
+    ;(println 'top code (:id node))
     (if (empty? code)
       tree
     (case (first code)
@@ -27,31 +36,44 @@
                                 :id new-id
                                 :parent (:id node)
                                 :call fn-call
-                                :label (when (= fn-call "defn") (join (take-word (drop-word (rest code))))))
+                                :label (if (= fn-call "defn")
+                                         (join (take-word (drop-word (rest code))))
+                                         ""))
                new-tree (assoc (update-in tree [(:id node) :kids] #(conj % new-id))
                                new-id new-node)]
-           (println "(" fn-call new-node)
+    ;       (println "(" fn-call new-node)
            (recur next-fn new-tree new-node))
-      \) (do (println ")") (recur (rest code) tree (tree (:parent node))))
-      (do (println 'else code) (recur (drop-while #(not (some (partial = %) [\( \)])) code) tree node))))))
+      \) (do
+          ; (println ")")
+           (recur (rest code) tree (tree (:parent node))))
+      (do 
+      ;  (println 'else code)
+        (recur (drop-while #(not (some (partial = %) [\( \)])) code) tree node))))))
 
-(defn prt [x] (println x) x)
 (defn link-fn-calls [tree]
   (reduce-kv 
     (fn [m k node]
       (assoc m k 
              (assoc node :kids 
                     (let [f (find-defn (:call node) tree)]
-                      (println (:call node) f)
                       (if f (conj (:kids node) f) (:kids node))))))
   {} tree))
 
+(defn link-loops [tree]
+  (reduce-kv 
+    (fn [m k node]
+      (println (:call node))
+      (assoc m k
+             (if (= (:call node) "recur")
+               (assoc node :kids (conj (:kids node) (:id (find-above "loop" node tree))))
+               node)))
+    {} tree))
 
 
 (defn print-nodes 
   ([nodes] (print-nodes 0 (nodes 0) nodes))
   ([indent node nodes] 
-   (println (str (join (take indent (repeat \space))) (:call node)))
+   (println (join (take indent (repeat \space))) (:call node) (:label node))
    (when (not (empty? (:kids node)))
      (doseq [n (:kids node)] 
        (print-nodes (+ 1 indent) (nodes n) nodes))))
@@ -62,8 +84,8 @@
   (q/frame-rate 30)
   ; Set color mode to HSB (HSV) instead of default RGB.
   (q/color-mode :hsb)
-  (let [nodes (code-to-nodes "(defn test [one two] (first (second one)) (third)) (test)")]
-    (println (link-fn-calls nodes))
+  (let [nodes (code-to-nodes "(defn test [one two] (first (second one)) (third)) (test) (loop [a b] (test) (recur a))")]
+    (println (link-loops (link-fn-calls nodes)))
     (print-nodes nodes))
   ; setup function returns initial state. It contains
   ; circle color and position.
